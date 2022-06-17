@@ -1,0 +1,311 @@
+
+#include <algorithm>
+#include <cmath>
+#include <deque>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <map>
+#include <set>
+#include <sstream>
+#include <string>
+
+class TextPreprocessor{
+ private:
+  std::set<std::string> stopwords;
+ public:
+  TextPreprocessor(const std::string& path){
+    std::ifstream is(path);
+    if(!is.good()){
+      std::cerr << "Can't find file: ' " << path << std::endl;
+      return;
+    }
+    std::string word;
+    while( is >> word){
+      stopwords.insert(word);
+    }
+  }
+  std::string Process(std::string& text) const{
+    //Preprocessing: lowercasing, stemming with porter's algorithm, lemmatization, stopword removal, noise removal
+    //https://www.kdnuggets.com/2019/04/text-preprocessing-nlp-machine-learning.html
+    
+    //lowercasing:
+    std::for_each(text.begin(), text.end(), [](char & c) {
+					      c = ::tolower(c);
+					    });
+    //remove alphanumeric characters
+    text.erase(std::remove_if(text.begin(), text.end(), [](char c) { return !std::isalpha(c); } ), text.end());
+    //Punctuation removal:
+    std::string processed;
+    std::remove_copy_if(text.begin(), text.end(),            
+			std::back_inserter(processed), //Store output           
+			std::ptr_fun<int, int>(&std::ispunct)  
+			);
+    std::istringstream is(processed);
+    //StopWords removal:
+    std::string word;
+    while(is >> word){
+      if(isStopWord(word)){
+	while(processed.find(word) != std::string::npos){
+	  processed.replace(processed.find(word),word.length(),"");
+	}
+      }
+    }
+    return processed;
+  }
+
+  bool isStopWord(const std::string& word) const{
+    if(stopwords.find(word) != stopwords.end())
+      return true;
+    return false;
+  }
+  
+};
+
+class Document{
+ private:
+  std::map<std::string, int> word2freq;
+  std::string classification;
+  public:
+  Document(){}
+  Document(const std::string& text, const std::string& classification_, const TextPreprocessor* prp = nullptr): classification(classification_){
+    std::istringstream is(text);
+    std::string word;
+    while(is >> word){
+      if(prp != nullptr){
+	std::string processed = prp->Process(word);
+	if(processed != "" && processed != " "){
+	  word2freq[processed]++;
+	}
+	else{
+	  word2freq[word]++;
+	}
+      }
+    }
+  }
+  void FromFile(const std::string& filename, const std::string& classification_, const TextPreprocessor* prp = nullptr){
+    classification = classification_;
+    std::ifstream is(filename);
+    if(!is.good()){
+      std::cerr << "Can't find file: " << filename << std::endl;
+      return;
+    }
+    std::string word;
+    while(is >> word){
+      if(prp != nullptr){
+	std::string processed = prp->Process(word);
+	if(processed != "" && processed != " "){
+	  word2freq[processed]++;
+	}
+	else{
+	  word2freq[word]++;
+	}
+      }
+    }
+  }
+  
+  int GetFreq(const std::string& word) const{
+    if(word2freq.find(word)!=word2freq.end())
+      return word2freq.find(word)->second;
+    else
+      return 0;
+  }
+
+  inline const std::string& GetClass() const {
+    return classification;
+  }
+  
+  class ConstIterator{
+   private:
+    const Document* doc;
+    std::map<std::string,int>::const_iterator iter;
+   public:
+    ConstIterator(const Document* doc_):doc(doc_){
+      iter = doc->word2freq.begin();
+    }
+    bool HasNext(){
+      return iter != doc->word2freq.end();
+    }
+    std::map<std::string,int>::const_iterator GetNext(){
+      std::map<std::string,int>::const_iterator el = iter;
+      iter++;
+      return el;
+    }
+  };
+};
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class Classificator{
+public:
+  virtual std::string Classify(const Document& doc) = 0;
+};
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class TrainingSet{
+private:
+  std::deque<Document*> documents;
+public:
+  TrainingSet(){}
+  void AddDocument(Document* doc){
+    documents.push_back(doc);
+  }
+  const Document* GetDocument(int i){
+    return documents[i];
+  }
+  //Folder format:
+  // Every sub_folder is named with the category of the documents that it contains
+  void FromFolder(const std::string& foldername,TextPreprocessor* prp){
+    for(auto& p: std::filesystem::recursive_directory_iterator(foldername)){
+      //std::cout << p.path().parent_path().filename() << '\n';
+	Document* doc = new Document();
+	doc->FromFile(p.path().string(), p.path().parent_path().filename(), prp );
+	documents.push_back(doc); 
+    }
+  }
+
+  class ConstIterator{
+   private:
+    int index = 0;
+    const TrainingSet* set;
+   public:
+    ConstIterator(const TrainingSet* set_):set(set_){
+      
+    }
+    bool HasNext() const{
+      return index < set->documents.size();
+    }
+    const Document* GetNext() {
+      index++;
+      return set->documents.at(index-1);
+    }
+  };
+  ~TrainingSet(){
+    for(int i = 0; i < documents.size(); i++ ){
+      delete documents[i];
+    }
+  }
+};
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class Distance{
+public:
+  virtual float CalculateDistance(const Document& doc1, const Document& doc2) = 0;
+};
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class CosineSimilarityDistance : public Distance{
+public:
+  virtual  float CalculateDistance(const Document& doc1, const Document& doc2){
+    //Devo usare la formula: x*y/(norm(x)*norm(y))
+    float distance = 0;
+    Document::ConstIterator iter(&doc1);
+    //Calcolo x*y;
+    float norm1 = 0;
+    float norm2 = 0;
+    while(iter.HasNext()){
+      std::map<std::string,int>::const_iterator el = iter.GetNext();
+      distance += el->second * doc2.GetFreq(el->first);
+      norm1 += (el->second)*(el->second);
+    }
+    norm1 = sqrt(norm1);
+    //Calcolo la norma del doc2
+    Document::ConstIterator iter1(&doc2);
+    while(iter1.HasNext()){
+      std::map<std::string,int>::const_iterator el = iter1.GetNext();
+      norm2 +=  (el->second)*(el->second);
+    }
+    norm2 = sqrt(norm2);
+    if(norm2 == 0 || norm1 == 0 )
+      return 1.0f;
+    return 1 - distance/((norm1)*(norm2));
+  }
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class EuclideanDistance: public Distance{
+public:
+  virtual  float CalculateDistance(const Document& doc1, const Document& doc2){
+    //Devo usare la formula: sqrt((x-y)*(x-y)')
+    float distance = 0;
+    Document::ConstIterator iter(&doc1);
+    //Calcolo (x-y)*(x-y)';
+    while(iter.HasNext()){
+      std::map<std::string,int>::const_iterator el = iter.GetNext();
+      distance += pow(el->second - doc2.GetFreq(el->first),2);
+    }
+    return sqrt(distance);
+  }
+  
+};
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class DistanceFactory{
+public:
+  static Distance* Build(const std::string& distance_){
+    if(distance_ == "cosine_similarity"){
+      return new CosineSimilarityDistance();
+    }
+    if(distance_ == "euclidean"){
+      return new EuclideanDistance();
+    }
+    return nullptr;
+  }
+};
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class KNNClassificator: public Classificator{
+private:
+  const TrainingSet* set;
+  int k;
+  Distance* distance;
+public:
+  KNNClassificator(){}
+  KNNClassificator(const TrainingSet* set_, int k_, const std::string& distance_):set(set_),k(k_){
+    distance = DistanceFactory::Build(distance_);
+    if(distance == nullptr){
+      std::cerr << "Wrong distance definition" << std::endl;
+    }
+   }
+  virtual std::string Classify(const Document& doc ){
+    //L'idea è creare una mappa di documenti ordinati in base alla distanza dal documento in analisi, dopodiché ritorno la classe di maggior numero di occurrenze nei primi k
+
+    std::multimap<float,std::string > distance2class;
+    TrainingSet::ConstIterator iter(set);
+    float dist = 0;
+    //Creo mappa ordinata secondo la distanza
+    while(iter.HasNext()){
+      const Document* el = iter.GetNext();
+      dist = distance->CalculateDistance(doc,*el);
+      distance2class.insert(std::pair<float,std::string>(dist,el->GetClass() ) ) ;
+    }
+    
+    //Trovo la classe con maggiori occorrenze nei primi k
+    std::map<std::string,int> class2freq;
+    std::multimap<float,std::string>::const_iterator iter2 = distance2class.begin();
+    int i = 0;
+    
+    for(int i = 0; i < k; i++){
+      class2freq[iter2->second]++;
+      //std::cout << iter2->first <<" "<<iter2->second << std::endl;
+      iter2++;
+    }
+    return std::max_element( class2freq.begin(), class2freq.end(),
+			    [](const std::pair<std::string,int> el1, const std::pair<std::string,int> el2){
+			      return el1.second < el2.second;
+			    })->first;    
+  }
+  virtual ~KNNClassificator(){}
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+int main(){
+  TextPreprocessor prp("./preprocess/stopwords.txt");
+  TrainingSet t1;
+  std::cout << "Loading training data..." << std::endl;
+  t1.FromFolder("./Data_set/20news-18828",&prp);
+  
+  KNNClassificator knn2(&t1,30,"cosine_similarity");
+  Document doc2;
+  
+  doc2.FromFile("test.txt","",&prp);
+  std::cout << "Classifying document..." << std::endl;
+  std::cout << knn2.Classify(doc2) << std::endl;    
+  return 0;
+}
+
+  

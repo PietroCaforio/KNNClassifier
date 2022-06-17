@@ -1,0 +1,6 @@
+#include <multimap>
+#include <iostream>
+
+int main(){
+  std::multimap<int,int> map;
+}
