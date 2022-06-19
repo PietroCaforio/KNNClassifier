@@ -6,7 +6,8 @@ If you don't know how the knn algorithm works: https://en.wikipedia.org/wiki/K-n
 Basically it finds the first k (with k being an arbitrary natural number wisely chosen) nearest documents and selects the category based on the frequency it occurs on those first k docs. \
 There's many ways to implement a metric for documents, I've implemented two: 
 - Cosine similarity 
-- Euclidean distance. \
+- Euclidean distance. 
+
 The Euclidean distance has some problems because is not simmetric so it doesn't really work properly as it should. \
 
 Compile:
