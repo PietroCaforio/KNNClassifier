@@ -8,7 +8,7 @@ There's many ways to implement a metric for documents, I've implemented two:
 - Cosine similarity 
 - Euclidean distance. 
 
-The Euclidean distance has some problems because is not simmetric so it doesn't really work properly as it should. 
+The Euclidean distance has some problems because it's not simmetric so it doesn't really work properly as it should. 
 
 Compile:
 g++ -std=c++17 knn.cc -o exe
