@@ -1,5 +1,5 @@
 # KNNClassifier
-A simple KNN document Classifier. \
+THis is a simple KNN document Classifier. \
 To try this project you need to put a text in the "test.txt" file and the KNN will try to classify it in one of the categories of the dataset. (It will tell what the text is about). \
 The dataset I used is a list of classified news documents from http://qwone.com/~jason/20Newsgroups/. \
 If you don't know how the knn algorithm works: https://en.wikipedia.org/wiki/K-nearest_neighbors_algorithm .\
@@ -8,7 +8,6 @@ There's many ways to implement a metric for documents, I've implemented two:
 - Cosine similarity 
 - Euclidean distance. 
 
-The Euclidean distance has some problems because it's not simmetric so it doesn't really work properly as it should. 
 
 Compile:
 g++ -std=c++17 knn.cc -o exe
