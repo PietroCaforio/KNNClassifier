@@ -1,13 +1,29 @@
 # KNNClassifier
-THis is a simple KNN document Classifier. \
-To try this project you need to put a text in the "test.txt" file and the KNN will try to classify it in one of the categories of the dataset. (It will tell what the text is about). \
-The dataset I used is a list of classified news documents from http://qwone.com/~jason/20Newsgroups/. \
-If you don't know how the knn algorithm works: https://en.wikipedia.org/wiki/K-nearest_neighbors_algorithm .\
-Basically it finds the first k (with k being an arbitrary natural number wisely chosen) nearest documents and selects the category based on the frequency it occurs on those first k docs. \
-There's many ways to implement a metric for documents, I've implemented two: 
-- Cosine similarity 
-- Euclidean distance. 
 
+This is a simple document classifier based on the K-Nearest Neighbors (KNN) algorithm.
 
-Compile:
+## Overview
+
+The classifier attempts to predict the category of a given text based on its similarity to documents in a labeled dataset. It uses one of two distance metrics—**Cosine Similarity** or **Euclidean Distance**—to determine the nearest neighbors.
+
+The dataset used is a collection of labeled news articles from the [20 Newsgroups dataset](http://qwone.com/~jason/20Newsgroups/).
+
+## Usage
+
+1. Place your test document inside the `test.txt` file.
+2. Run the classifier to obtain a predicted category for the document.
+
+## How It Works
+
+The KNN algorithm finds the **k** most similar documents in the dataset and assigns the label that appears most frequently among them. The value of **k** should be chosen carefully for optimal results.
+
+### Supported Distance Metrics
+- **Cosine Similarity**
+- **Euclidean Distance**
+
+## Compilation
+
+To compile the project:
+
+```bash
 g++ -std=c++17 knn.cc -o exe
